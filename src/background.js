@@ -23,15 +23,17 @@ export default class Background {
   prevHeight: number;
 
   points: Array<Point>;
+  triangleColorMap: Map<string, string>;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
 
-    this.prevWidth = 0;
-    this.prevHeight = 0;
+    this.prevWidth = this.canvas.offsetWidth;
+    this.prevHeight = this.canvas.offsetHeight;
 
     this.points = [];
+    this.triangleColorMap = new Map();
 
     this.handleResize();
     window.addEventListener('resize', () => this.handleResize());
@@ -42,6 +44,9 @@ export default class Background {
     this.canvas.height = this.canvas.offsetHeight;
 
     const numPoints = Math.sqrt(POINT_DENSITY * this.canvas.width * this.canvas.height);
+    const widthChange = this.canvas.width / this.prevWidth;
+    const heightChange = this.canvas.height / this.prevHeight;
+
     this.points = [
       [0, 0],
       [0, this.canvas.height],
@@ -50,8 +55,8 @@ export default class Background {
       ...this.points
         .slice(Math.min(this.points.length, 4), numPoints)
         .map(([x, y]) => [
-          x * (this.canvas.width / this.prevWidth),
-          y * (this.canvas.height / this.prevHeight),
+          x * widthChange,
+          y * heightChange,
         ]),
       ...Array.from(
         { length: numPoints - this.points.length },
@@ -81,13 +86,22 @@ export default class Background {
     let triangleColorIndex = 0;
 
     for (let i = 0; i < triangles.length; i += 3) {
+      const pointIndexes = triangles.slice(i, i + 3);
+      const triangle = [...pointIndexes].map(j => this.points[j]);
+
       this.ctx.beginPath();
-      this.ctx.moveTo(...this.points[triangles[i]]);
-      this.ctx.lineTo(...this.points[triangles[i + 1]]);
-      this.ctx.lineTo(...this.points[triangles[i + 2]]);
+      this.ctx.moveTo(...triangle[0]);
+      this.ctx.lineTo(...triangle[1]);
+      this.ctx.lineTo(...triangle[2]);
       this.ctx.closePath();
 
-      const color = TRIANGLE_COLORS[triangleColorIndex];
+      const pointIndexesSerialized = pointIndexes.join();
+      let color = this.triangleColorMap.get(pointIndexesSerialized);
+      if (color == null) {
+        color = TRIANGLE_COLORS[triangleColorIndex];
+        this.triangleColorMap.set(pointIndexesSerialized, color);
+      }
+
       this.ctx.fillStyle = color;
       this.ctx.strokeStyle = color;
       this.ctx.fill();
