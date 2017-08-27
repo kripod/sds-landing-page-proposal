@@ -1,0 +1,33 @@
+{
+  "private": true,
+  "name": "sds-landing-page-proposal",
+  "version": "0.1.0",
+  "main": "dist/bundle.js",
+  "repository": "https://github.com/kripod/sds-landing-page-proposal",
+  "author": "Kristóf Poduszló <kripod@protonmail.com>",
+  "license": "MIT",
+  "scripts": {
+    "lint": "eslint src && flow check",
+    "build": "webpack",
+    "start": "webpack-dev-server --open",
+    "prepublish": "yarn build"
+  },
+  "dependencies": {
+    "delaunator": "^1.0.4"
+  },
+  "devDependencies": {
+    "babel-cli": "^6.26.0",
+    "babel-core": "^6.26.0",
+    "babel-eslint": "^7.2.3",
+    "babel-loader": "^7.1.2",
+    "babel-preset-env": "^1.6.0",
+    "babel-preset-flow": "^6.23.0",
+    "eslint": "^4.5.0",
+    "eslint-config-airbnb-base": "^11.3.2",
+    "eslint-plugin-flowtype": "^2.35.0",
+    "eslint-plugin-import": "^2.7.0",
+    "flow-bin": "^0.53.1",
+    "webpack": "^3.5.5",
+    "webpack-dev-server": "^2.7.1"
+  }
+}
