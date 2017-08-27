@@ -19,11 +19,17 @@ export default class Background {
   canvas: HTMLCanvasElement;
   ctx: CanvasRenderingContext2D;
 
+  prevWidth: number;
+  prevHeight: number;
+
   points: Array<Point>;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
+
+    this.prevWidth = 0;
+    this.prevHeight = 0;
 
     this.points = [];
 
@@ -41,7 +47,12 @@ export default class Background {
       [0, this.canvas.height],
       [this.canvas.width, 0],
       [this.canvas.width, this.canvas.height],
-      ...this.points.slice(Math.min(this.points.length, 4), numPoints),
+      ...this.points
+        .slice(Math.min(this.points.length, 4), numPoints)
+        .map(([x, y]) => [
+          x * (this.canvas.width / this.prevWidth),
+          y * (this.canvas.height / this.prevHeight),
+        ]),
       ...Array.from(
         { length: numPoints - this.points.length },
         () => randomPoint(this.canvas.width, this.canvas.height),
@@ -59,6 +70,9 @@ export default class Background {
     );
 
     this.draw();
+
+    this.prevWidth = this.canvas.width;
+    this.prevHeight = this.canvas.height;
   }
 
   draw() {
