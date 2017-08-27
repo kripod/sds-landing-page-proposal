@@ -9,6 +9,8 @@ cache:
 script:
 - yarn build -- -p
 - yarn lint
+before_deploy:
+- sed --in-place '/dist/d' .gitignore
 deploy:
   provider: pages
   skip_cleanup: true
