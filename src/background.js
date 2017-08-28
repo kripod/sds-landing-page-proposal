@@ -24,6 +24,7 @@ export default class Background {
 
   points: Array<Point>;
   triangleColorMap: Map<string, string>;
+  nextTriangleColorIndex: number;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -34,9 +35,16 @@ export default class Background {
 
     this.points = [];
     this.triangleColorMap = new Map();
+    this.nextTriangleColorIndex = 0;
 
     this.handleResize();
     window.addEventListener('resize', () => this.handleResize());
+  }
+
+  getNextTriangleColor() {
+    const color = TRIANGLE_COLORS[this.nextTriangleColorIndex];
+    this.nextTriangleColorIndex = (this.nextTriangleColorIndex + 1) % TRIANGLE_COLORS.length;
+    return color;
   }
 
   handleResize() {
@@ -89,8 +97,6 @@ export default class Background {
   draw() {
     const { triangles } = new Delaunator(this.points);
 
-    let triangleColorIndex = 0;
-
     for (let i = 0; i < triangles.length; i += 3) {
       const pointIndexes = triangles.slice(i, i + 3);
       const triangle = [...pointIndexes].map(j => this.points[j]);
@@ -104,7 +110,7 @@ export default class Background {
       const pointIndexesSerialized = pointIndexes.join();
       let color = this.triangleColorMap.get(pointIndexesSerialized);
       if (color == null) {
-        color = TRIANGLE_COLORS[triangleColorIndex];
+        color = this.getNextTriangleColor();
         this.triangleColorMap.set(pointIndexesSerialized, color);
       }
 
@@ -112,8 +118,6 @@ export default class Background {
       this.ctx.strokeStyle = color;
       this.ctx.fill();
       this.ctx.stroke();
-
-      triangleColorIndex = (triangleColorIndex + 1) % TRIANGLE_COLORS.length;
     }
   }
 }
