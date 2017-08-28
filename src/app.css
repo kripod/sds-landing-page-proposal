@@ -9,12 +9,14 @@ body {
 }
 
 #logo {
-  position: absolute;
+  position: fixed;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
   max-width: 75%;
   max-height: 60%;
+  cursor: default;
+  user-select: none;
 }
 
 #logo circle {
