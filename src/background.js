@@ -43,23 +43,29 @@ export default class Background {
     this.canvas.width = this.canvas.offsetWidth;
     this.canvas.height = this.canvas.offsetHeight;
 
+    // Make the amount of points proportional to the screen size
     const numPoints = Math.sqrt(POINT_DENSITY * this.canvas.width * this.canvas.height);
     const widthChange = this.canvas.width / this.prevWidth;
     const heightChange = this.canvas.height / this.prevHeight;
 
     this.points = [
+      // Corners
       [0, 0],
       [0, this.canvas.height],
       [this.canvas.width, 0],
       [this.canvas.width, this.canvas.height],
+
+      // Scale previous non-corner points
       ...this.points
-        .slice(Math.min(this.points.length, 4), numPoints)
+        .slice(4, numPoints)
         .map(([x, y]) => [
           x * widthChange,
           y * heightChange,
         ]),
+
+      // Generate new points if necessary
       ...Array.from(
-        { length: numPoints - this.points.length },
+        { length: numPoints - Math.max(this.points.length, 4) },
         () => randomPoint(this.canvas.width, this.canvas.height),
       ),
     ];
