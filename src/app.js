@@ -9,3 +9,4 @@ if (!(backgroundCanvas instanceof HTMLCanvasElement)) {
 }
 
 const bg = new Background(backgroundCanvas); // eslint-disable-line no-unused-vars
+bg.startAnimation();

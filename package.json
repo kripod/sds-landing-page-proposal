@@ -13,7 +13,8 @@
     "prepublish": "yarn build"
   },
   "dependencies": {
-    "delaunator": "^1.0.4"
+    "delaunator": "^1.0.4",
+    "point-in-triangle": "^1.0.1"
   },
   "devDependencies": {
     "babel-cli": "^6.26.0",

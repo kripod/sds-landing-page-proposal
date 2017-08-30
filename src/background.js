@@ -1,10 +1,13 @@
 // @flow
 
 import Delaunator from 'delaunator';
-import { randomPoint } from './random';
+import isPointInTriangle from 'point-in-triangle';
+import { randomFloat, randomPoint } from './random';
 import type { Point } from './point';
 
-const POINT_DENSITY = 0.05;
+const POINT_DENSITY = 0.002; // 0.05 / window.devicePixelRatio;
+const MAX_POINT_VELOCITY_X = 0.5; // 2;
+const MAX_POINT_VELOCITY_Y = 0.5; // 2;
 const OFFSCREEN_AREA_RATIO = 0.05;
 
 const TRIANGLE_COLORS = [
@@ -23,6 +26,8 @@ export default class Background {
   prevHeight: number;
 
   points: Array<Point>;
+  pointVelocities: Array<Point>;
+  cells: Array<Array<number>>;
   triangleColorMap: Map<string, string>;
   nextTriangleColorIndex: number;
 
@@ -34,6 +39,7 @@ export default class Background {
     this.prevHeight = this.canvas.offsetHeight;
 
     this.points = [];
+    this.pointVelocities = [];
     this.triangleColorMap = new Map();
     this.nextTriangleColorIndex = 0;
 
@@ -78,6 +84,18 @@ export default class Background {
       ),
     ];
 
+    this.pointVelocities = [
+      ...Array.from({ length: 4 }, () => [0, 0]),
+      ...this.pointVelocities.slice(4, this.points.length),
+      ...Array.from(
+        { length: this.points.length - this.pointVelocities.length },
+        () => [
+          randomFloat(MAX_POINT_VELOCITY_X, -MAX_POINT_VELOCITY_X),
+          randomFloat(MAX_POINT_VELOCITY_Y, -MAX_POINT_VELOCITY_Y),
+        ],
+      ),
+    ];
+
     // Use offscreen area to avoid weird triangles near the borders
     this.ctx.setTransform(
       1 + (2 * OFFSCREEN_AREA_RATIO),
@@ -88,18 +106,51 @@ export default class Background {
       -this.canvas.height * OFFSCREEN_AREA_RATIO,
     );
 
+    const { triangles: cellsFlattened } = new Delaunator(this.points);
+    this.cells = Array.from(
+      { length: cellsFlattened.length / 3 },
+      (v, i) => [...cellsFlattened.subarray(i * 3, (i + 1) * 3)],
+    );
+
     this.draw();
 
     this.prevWidth = this.canvas.width;
     this.prevHeight = this.canvas.height;
   }
 
-  draw() {
-    const { triangles } = new Delaunator(this.points);
+  movePoints() {
+    this.points.forEach(([x, y], i) => {
+      const [vx, vy] = this.pointVelocities[i];
 
-    for (let i = 0; i < triangles.length; i += 3) {
-      const pointIndexes = triangles.slice(i, i + 3);
-      const triangle = [...pointIndexes].map(j => this.points[j]);
+      if (this.cells
+        .filter(cell => !cell.includes(i))
+        .map(cell => cell.map(pointIndex => this.points[pointIndex]))
+        .some(triangle => isPointInTriangle([x + vx, y + vy], triangle))
+      ) {
+        this.pointVelocities[i][0] *= -1;
+        this.pointVelocities[i][1] *= -1;
+      } else {
+        if (x + vx < 0 || x + vx > this.canvas.width) {
+          this.pointVelocities[i][0] *= -1;
+        }
+
+        if (y + vy < 0 || y + vy > this.canvas.height) {
+          this.pointVelocities[i][1] *= -1;
+        }
+      }
+
+      this.points[i] = [
+        x + this.pointVelocities[i][0],
+        y + this.pointVelocities[i][1],
+      ];
+    });
+  }
+
+  draw() {
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+    this.cells.forEach((cell) => {
+      const triangle = cell.map(j => this.points[j]);
 
       this.ctx.beginPath();
       this.ctx.moveTo(...triangle[0]);
@@ -107,17 +158,25 @@ export default class Background {
       this.ctx.lineTo(...triangle[2]);
       this.ctx.closePath();
 
-      const pointIndexesSerialized = pointIndexes.join();
-      let color = this.triangleColorMap.get(pointIndexesSerialized);
+      const cellSerialized = cell.join();
+      let color = this.triangleColorMap.get(cellSerialized);
       if (color == null) {
         color = this.getNextTriangleColor();
-        this.triangleColorMap.set(pointIndexesSerialized, color);
+        this.triangleColorMap.set(cellSerialized, color);
       }
 
       this.ctx.fillStyle = color;
       this.ctx.strokeStyle = color;
       this.ctx.fill();
       this.ctx.stroke();
-    }
+    });
+  }
+
+  startAnimation() {
+    window.requestAnimationFrame(() => {
+      this.movePoints();
+      this.draw();
+      this.startAnimation();
+    });
   }
 }
