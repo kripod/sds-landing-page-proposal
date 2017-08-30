@@ -2,7 +2,10 @@
 
 import Delaunator from 'delaunator';
 import isPointInTriangle from 'point-in-triangle';
-import { randomFloat, randomPoint } from './random';
+import { createCell } from './cell';
+import { createPoint } from './point';
+import { randomPoint } from './random';
+import type { Cell } from './cell';
 import type { Point } from './point';
 
 const POINT_DENSITY = 0.002; // 0.05 / window.devicePixelRatio;
@@ -26,10 +29,8 @@ export default class Background {
   prevHeight: number;
 
   points: Array<Point>;
-  pointVelocities: Array<Point>;
-  cells: Array<Array<number>>;
-  triangleColorMap: Map<string, string>;
-  nextTriangleColorIndex: number;
+  cells: Array<Cell>;
+  nextCellColorIndex: number;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -39,17 +40,16 @@ export default class Background {
     this.prevHeight = this.canvas.offsetHeight;
 
     this.points = [];
-    this.pointVelocities = [];
-    this.triangleColorMap = new Map();
-    this.nextTriangleColorIndex = 0;
+    this.cells = [];
+    this.nextCellColorIndex = 0;
 
     this.handleResize();
     window.addEventListener('resize', () => this.handleResize());
   }
 
-  getNextTriangleColor() {
-    const color = TRIANGLE_COLORS[this.nextTriangleColorIndex];
-    this.nextTriangleColorIndex = (this.nextTriangleColorIndex + 1) % TRIANGLE_COLORS.length;
+  getNextCellColor() {
+    const color = TRIANGLE_COLORS[this.nextCellColorIndex];
+    this.nextCellColorIndex = (this.nextCellColorIndex + 1) % TRIANGLE_COLORS.length;
     return color;
   }
 
@@ -64,35 +64,30 @@ export default class Background {
 
     this.points = [
       // Corners
-      [0, 0],
-      [0, this.canvas.height],
-      [this.canvas.width, 0],
-      [this.canvas.width, this.canvas.height],
+      createPoint(0, 0),
+      createPoint(0, this.canvas.height),
+      createPoint(this.canvas.width, 0),
+      createPoint(this.canvas.width, this.canvas.height),
 
       // Scale previous non-corner points
       ...this.points
         .slice(4, numPoints)
-        .map(([x, y]) => [
-          x * widthChange,
-          y * heightChange,
-        ]),
+        .map(({ x, y, vx, vy }) => ({
+          x: x * widthChange,
+          y: y * heightChange,
+          vx,
+          vy,
+        })),
 
       // Generate new points if necessary
       ...Array.from(
         { length: numPoints - Math.max(this.points.length, 4) },
-        () => randomPoint(this.canvas.width, this.canvas.height),
-      ),
-    ];
-
-    this.pointVelocities = [
-      ...Array.from({ length: 4 }, () => [0, 0]),
-      ...this.pointVelocities.slice(4, this.points.length),
-      ...Array.from(
-        { length: this.points.length - this.pointVelocities.length },
-        () => [
-          randomFloat(MAX_POINT_VELOCITY_X, -MAX_POINT_VELOCITY_X),
-          randomFloat(MAX_POINT_VELOCITY_Y, -MAX_POINT_VELOCITY_Y),
-        ],
+        () => randomPoint({
+          maxX: this.canvas.width,
+          maxY: this.canvas.height,
+          maxVx: MAX_POINT_VELOCITY_X,
+          maxVy: MAX_POINT_VELOCITY_Y,
+        }),
       ),
     ];
 
@@ -106,10 +101,18 @@ export default class Background {
       -this.canvas.height * OFFSCREEN_AREA_RATIO,
     );
 
-    const { triangles: cellsFlattened } = new Delaunator(this.points);
+    const { triangles: cellsFlattened } = new Delaunator(
+      this.points,
+      point => point.x,
+      point => point.y,
+    );
+
     this.cells = Array.from(
       { length: cellsFlattened.length / 3 },
-      (v, i) => [...cellsFlattened.subarray(i * 3, (i + 1) * 3)],
+      (v, i) => createCell(
+        [...cellsFlattened.subarray(i * 3, (i + 1) * 3)],
+        this.getNextCellColor(),
+      ),
     );
 
     this.draw();
@@ -119,30 +122,30 @@ export default class Background {
   }
 
   movePoints() {
-    this.points.forEach(([x, y], i) => {
-      const [vx, vy] = this.pointVelocities[i];
-
-      if (this.cells
-        .filter(cell => !cell.includes(i))
-        .map(cell => cell.map(pointIndex => this.points[pointIndex]))
-        .some(triangle => isPointInTriangle([x + vx, y + vy], triangle))
+    this.points.forEach(({ x, y, vx, vy }, i) => {
+      if (
+        this.cells
+          .filter(cell => !cell.pointIndexes.includes(i))
+          .map(cell => cell.pointIndexes.map(pointIndex => this.points[pointIndex]))
+          .some(triangle => isPointInTriangle(
+            [x + vx, y + vy],
+            triangle.map(point => [point.x, point.y]),
+          ))
       ) {
-        this.pointVelocities[i][0] *= -1;
-        this.pointVelocities[i][1] *= -1;
+        this.points[i].vx *= -1;
+        this.points[i].vy *= -1;
       } else {
         if (x + vx < 0 || x + vx > this.canvas.width) {
-          this.pointVelocities[i][0] *= -1;
+          this.points[i].vx *= -1;
         }
 
         if (y + vy < 0 || y + vy > this.canvas.height) {
-          this.pointVelocities[i][1] *= -1;
+          this.points[i].vy *= -1;
         }
       }
 
-      this.points[i] = [
-        x + this.pointVelocities[i][0],
-        y + this.pointVelocities[i][1],
-      ];
+      this.points[i].x += this.points[i].vx;
+      this.points[i].y += this.points[i].vy;
     });
   }
 
@@ -150,23 +153,16 @@ export default class Background {
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
     this.cells.forEach((cell) => {
-      const triangle = cell.map(j => this.points[j]);
+      const triangle = cell.pointIndexes.map(pointIndex => this.points[pointIndex]);
 
       this.ctx.beginPath();
-      this.ctx.moveTo(...triangle[0]);
-      this.ctx.lineTo(...triangle[1]);
-      this.ctx.lineTo(...triangle[2]);
+      this.ctx.moveTo(triangle[0].x, triangle[0].y);
+      this.ctx.lineTo(triangle[1].x, triangle[1].y);
+      this.ctx.lineTo(triangle[2].x, triangle[2].y);
       this.ctx.closePath();
 
-      const cellSerialized = cell.join();
-      let color = this.triangleColorMap.get(cellSerialized);
-      if (color == null) {
-        color = this.getNextTriangleColor();
-        this.triangleColorMap.set(cellSerialized, color);
-      }
-
-      this.ctx.fillStyle = color;
-      this.ctx.strokeStyle = color;
+      this.ctx.fillStyle = cell.color;
+      this.ctx.strokeStyle = cell.color;
       this.ctx.fill();
       this.ctx.stroke();
     });
