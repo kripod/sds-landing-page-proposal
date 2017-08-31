@@ -5,6 +5,9 @@ import { createMovingPoint } from './point';
 export const randomFloat = (max: number, min?: number = 0) =>
   (Math.random() * (max - min)) + min;
 
+export const randomInt = (max: number, min?: number = 0) =>
+  Math.floor(randomFloat(max, min));
+
 export const randomMovingPoint = (
   {
     maxX,

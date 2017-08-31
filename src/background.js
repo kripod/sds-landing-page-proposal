@@ -5,7 +5,7 @@ import isPointInTriangle from 'point-in-triangle';
 import { createCell } from './cell';
 import { createLineSegment, lineSegmentToVector } from './line';
 import { createMovingPoint, pointDistanceFromLineSegment } from './point';
-import { randomMovingPoint } from './random';
+import { randomInt, randomMovingPoint } from './random';
 import { createVector, vectorRotate2D, vectorsAngle } from './vector';
 import type { Cell } from './cell';
 import type { MovingPoint } from './point';
@@ -15,7 +15,13 @@ const MAX_POINT_VELOCITY_X = 0; // 2;
 const MAX_POINT_VELOCITY_Y = 0; // 2;
 const OFFSCREEN_AREA_RATIO = 0; // 0.05;
 
-const TRIANGLE_COLORS = ['#901429', '#b90e3e', '#be0e34', '#d30d42', '#de1851'];
+const TRIANGLE_COLORS = [
+  '#901429',
+  '#b90e3e',
+  '#be0e34',
+  '#d30d42',
+  '#de1851',
+];
 
 export default class Background {
   canvas: HTMLCanvasElement;
@@ -26,7 +32,6 @@ export default class Background {
 
   points: Array<MovingPoint>;
   cells: Array<Cell>;
-  nextCellColorIndex: number;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -37,17 +42,9 @@ export default class Background {
 
     this.points = [];
     this.cells = [];
-    this.nextCellColorIndex = 0;
 
     this.handleResize();
     window.addEventListener('resize', () => this.handleResize());
-  }
-
-  getNextCellColor() {
-    const color = TRIANGLE_COLORS[this.nextCellColorIndex];
-    this.nextCellColorIndex =
-      (this.nextCellColorIndex + 1) % TRIANGLE_COLORS.length;
-    return color;
   }
 
   handleResize() {
@@ -106,12 +103,19 @@ export default class Background {
       point => point.y,
     );
 
-    this.cells = Array.from({ length: cellsFlattened.length / 3 }, (v, i) =>
-      createCell(
-        [...cellsFlattened.subarray(i * 3, (i + 1) * 3)],
-        this.getNextCellColor(),
-      ),
+    const prevCellColors = new Map(
+      this.cells.map(({ pointIndexes, color }) => [pointIndexes.join(), color]),
     );
+
+    this.cells = Array.from({ length: cellsFlattened.length / 3 }, (v, i) => {
+      const pointIndexes = [...cellsFlattened.subarray(i * 3, (i + 1) * 3)];
+
+      return createCell(
+        pointIndexes,
+        prevCellColors.get(pointIndexes.join()) ||
+          TRIANGLE_COLORS[randomInt(TRIANGLE_COLORS.length)],
+      );
+    });
 
     this.draw();
 
