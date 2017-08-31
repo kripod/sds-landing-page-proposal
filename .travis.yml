@@ -1,0 +1,20 @@
+language: node_js
+node_js:
+- node
+- "--lts"
+cache:
+  yarn: true
+  directories:
+  - node_modules
+script:
+- yarn build -- -p
+- yarn lint
+before_deploy:
+- sed --in-place '/dist/d' .gitignore
+deploy:
+  provider: pages
+  skip_cleanup: true
+  github_token:
+    secure: ksvbnr+Fz9ZAU3zWtt1mj7ByQlTPGsccCqJdlYx1Pc3tib8AnCa0nGzETFDIe2MueT4B+Ls3n8awMnYQQTTNnBjvevI1rp2F7Jmy1lRcXFGcdPWTmheWr0YT98GF0FIuEQ6kbll4fpqQFLJCYGt6onmaw4kTcOTyGmBCXHa6QHuu7JmtQleCxdjBiXngW5FujcW9VtqgYbmnFvroYbaAvDaHYyTcdumxpFhSnGxSeIVMbwak5o2qIwfCUI28nsPkt1+qzW3L55Pcn7JOM09HgpRNqr/NdpVQAWHqFGIQbQYPY2gQX8+22HrPghAI9v+jiCU8C684+Xp5XI8Mx4yHnza9zbguz9uGRigku+t98jUXDme+Yzh1c7Snd2FmeBbPqC+H6PvyU5484abElJcnnfz0SyrpDYuTxaDvHYaTu/1XF0KmCauZvFtoirMsAHUsqf0uaFDD3O4/+gyhpgOaGE91vEtN4mdJzWV0Q4C50O4FTCJJVqcaz1v8Ud3/m3jtp7v/Kg5WLkwTpz0gQ8Rb4CCzhUM4J7FBPAOfXQENZxwA4yul2emnKicqz9/fjPZUX2JUZ6c/St0zio5pDu/Qo+2jFF79xiOQ/ZWMiv3jCFSWLHRnlr71gTdZR+wlIHbt0FeBsaXA+6DST6ecIEGQpWVSV3WwnD2A75rm/puHV7I=
+  on:
+    branch: master
