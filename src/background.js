@@ -1,19 +1,17 @@
 // @flow
 
 import Delaunator from 'delaunator';
-import isPointInTriangle from 'point-in-triangle';
 import { createCell } from './cell';
-import { createLineSegment, lineSegmentToVector } from './line';
 import { createMovingPoint, pointDistanceFromLineSegment } from './point';
 import { randomInt, randomMovingPoint } from './random';
-import { createVector, vectorRotate2D, vectorsAngle } from './vector';
+import { createVector, vectorLength } from './vector';
 import type { Cell } from './cell';
 import type { MovingPoint } from './point';
 
-const POINT_DENSITY = 0.05; // 0.05 / window.devicePixelRatio;
-const MAX_POINT_VELOCITY_X = 0; // 2;
-const MAX_POINT_VELOCITY_Y = 0; // 2;
-const OFFSCREEN_AREA_RATIO = 0; // 0.05;
+const POINT_DENSITY = 0.05 / window.devicePixelRatio;
+const MAX_POINT_VELOCITY_X = 0.5;
+const MAX_POINT_VELOCITY_Y = 0.5;
+const OFFSCREEN_AREA_RATIO = 0.05;
 
 const TRIANGLE_COLORS = [
   '#901429',
@@ -52,9 +50,12 @@ export default class Background {
     this.canvas.height = this.canvas.offsetHeight;
 
     // Make the amount of points proportional to the screen size
-    const numPoints = POINT_DENSITY * Math.sqrt(
-      (this.canvas.width ** 2) +
-      (this.canvas.height ** 2),
+    const numPoints = Math.round(
+      POINT_DENSITY *
+      Math.sqrt(
+        (this.canvas.width ** 2) +
+        (this.canvas.height ** 2),
+      ),
     );
     const widthChange = this.canvas.width / this.prevWidth;
     const heightChange = this.canvas.height / this.prevHeight;
@@ -124,6 +125,40 @@ export default class Background {
   }
 
   movePoints() {
+    this.points = this.points
+      .map((point, i) => {
+        const triangles = this.cells.filter(({ pointIndexes }) => pointIndexes.includes(i));
+
+        const oppositeEdges = triangles
+          .map(({ pointIndexes }) =>
+            pointIndexes
+              .filter(pointIndex => pointIndex !== i)
+              .map(pointIndex => this.points[pointIndex]),
+          );
+
+        const v = createVector(point.vx, point.vy);
+
+        const collidingEdge = oppositeEdges
+          .find(edge =>
+            pointDistanceFromLineSegment([edge[0], edge[1]], point) <= vectorLength(v),
+          );
+
+        let { vx, vy } = point;
+
+        if (collidingEdge) {
+          vx *= -1;
+          vy *= -1;
+        }
+
+        return {
+          x: point.x + vx,
+          y: point.y + vy,
+          vx,
+          vy,
+        };
+      });
+
+    /*
     this.points.forEach(({ x, y, vx, vy }, i) => {
       const collidingTriangle = this.cells
         .filter(cell => !cell.pointIndexes.includes(i))
@@ -169,6 +204,7 @@ export default class Background {
       this.points[i].x += this.points[i].vx;
       this.points[i].y += this.points[i].vy;
     });
+    */
   }
 
   draw() {
