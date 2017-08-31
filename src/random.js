@@ -1,11 +1,11 @@
 // @flow
 
-import { createPoint } from './point';
+import { createMovingPoint } from './point';
 
 export const randomFloat = (max: number, min?: number = 0) =>
   (Math.random() * (max - min)) + min;
 
-export const randomPoint = (
+export const randomMovingPoint = (
   {
     maxX,
     maxY,
@@ -26,7 +26,7 @@ export const randomPoint = (
     minVy?: number,
   } = {},
 ) =>
-  createPoint(
+  createMovingPoint(
     randomFloat(maxX, minX),
     randomFloat(maxY, minY),
     randomFloat(maxVx, minVx),

@@ -3,23 +3,19 @@
 import Delaunator from 'delaunator';
 import isPointInTriangle from 'point-in-triangle';
 import { createCell } from './cell';
-import { createPoint } from './point';
-import { randomPoint } from './random';
+import { createLineSegment, lineSegmentToVector } from './line';
+import { createMovingPoint, pointDistanceFromLineSegment } from './point';
+import { randomMovingPoint } from './random';
+import { createVector, vectorRotate2D, vectorsAngle } from './vector';
 import type { Cell } from './cell';
-import type { Point } from './point';
+import type { MovingPoint } from './point';
 
-const POINT_DENSITY = 0.002; // 0.05 / window.devicePixelRatio;
-const MAX_POINT_VELOCITY_X = 0.5; // 2;
-const MAX_POINT_VELOCITY_Y = 0.5; // 2;
-const OFFSCREEN_AREA_RATIO = 0.05;
+const POINT_DENSITY = 0.05; // 0.05 / window.devicePixelRatio;
+const MAX_POINT_VELOCITY_X = 0; // 2;
+const MAX_POINT_VELOCITY_Y = 0; // 2;
+const OFFSCREEN_AREA_RATIO = 0; // 0.05;
 
-const TRIANGLE_COLORS = [
-  '#901429',
-  '#b90e3e',
-  '#be0e34',
-  '#d30d42',
-  '#de1851',
-];
+const TRIANGLE_COLORS = ['#901429', '#b90e3e', '#be0e34', '#d30d42', '#de1851'];
 
 export default class Background {
   canvas: HTMLCanvasElement;
@@ -28,7 +24,7 @@ export default class Background {
   prevWidth: number;
   prevHeight: number;
 
-  points: Array<Point>;
+  points: Array<MovingPoint>;
   cells: Array<Cell>;
   nextCellColorIndex: number;
 
@@ -49,7 +45,8 @@ export default class Background {
 
   getNextCellColor() {
     const color = TRIANGLE_COLORS[this.nextCellColorIndex];
-    this.nextCellColorIndex = (this.nextCellColorIndex + 1) % TRIANGLE_COLORS.length;
+    this.nextCellColorIndex =
+      (this.nextCellColorIndex + 1) % TRIANGLE_COLORS.length;
     return color;
   }
 
@@ -58,36 +55,38 @@ export default class Background {
     this.canvas.height = this.canvas.offsetHeight;
 
     // Make the amount of points proportional to the screen size
-    const numPoints = Math.sqrt(POINT_DENSITY * this.canvas.width * this.canvas.height);
+    const numPoints = POINT_DENSITY * Math.sqrt(
+      (this.canvas.width ** 2) +
+      (this.canvas.height ** 2),
+    );
     const widthChange = this.canvas.width / this.prevWidth;
     const heightChange = this.canvas.height / this.prevHeight;
 
     this.points = [
       // Corners
-      createPoint(0, 0),
-      createPoint(0, this.canvas.height),
-      createPoint(this.canvas.width, 0),
-      createPoint(this.canvas.width, this.canvas.height),
+      createMovingPoint(0, 0),
+      createMovingPoint(0, this.canvas.height),
+      createMovingPoint(this.canvas.width, 0),
+      createMovingPoint(this.canvas.width, this.canvas.height),
 
       // Scale previous non-corner points
-      ...this.points
-        .slice(4, numPoints)
-        .map(({ x, y, vx, vy }) => ({
-          x: x * widthChange,
-          y: y * heightChange,
-          vx,
-          vy,
-        })),
+      ...this.points.slice(4, numPoints).map(({ x, y, vx, vy }) => ({
+        x: x * widthChange,
+        y: y * heightChange,
+        vx,
+        vy,
+      })),
 
       // Generate new points if necessary
       ...Array.from(
         { length: numPoints - Math.max(this.points.length, 4) },
-        () => randomPoint({
-          maxX: this.canvas.width,
-          maxY: this.canvas.height,
-          maxVx: MAX_POINT_VELOCITY_X,
-          maxVy: MAX_POINT_VELOCITY_Y,
-        }),
+        () =>
+          randomMovingPoint({
+            maxX: this.canvas.width,
+            maxY: this.canvas.height,
+            maxVx: MAX_POINT_VELOCITY_X,
+            maxVy: MAX_POINT_VELOCITY_Y,
+          }),
       ),
     ];
 
@@ -107,9 +106,8 @@ export default class Background {
       point => point.y,
     );
 
-    this.cells = Array.from(
-      { length: cellsFlattened.length / 3 },
-      (v, i) => createCell(
+    this.cells = Array.from({ length: cellsFlattened.length / 3 }, (v, i) =>
+      createCell(
         [...cellsFlattened.subarray(i * 3, (i + 1) * 3)],
         this.getNextCellColor(),
       ),
@@ -123,17 +121,37 @@ export default class Background {
 
   movePoints() {
     this.points.forEach(({ x, y, vx, vy }, i) => {
-      if (
-        this.cells
-          .filter(cell => !cell.pointIndexes.includes(i))
-          .map(cell => cell.pointIndexes.map(pointIndex => this.points[pointIndex]))
-          .some(triangle => isPointInTriangle(
+      const collidingTriangle = this.cells
+        .filter(cell => !cell.pointIndexes.includes(i))
+        .map(cell =>
+          cell.pointIndexes.map(pointIndex => this.points[pointIndex]),
+        )
+        .find(triangle =>
+          isPointInTriangle(
             [x + vx, y + vy],
             triangle.map(point => [point.x, point.y]),
-          ))
-      ) {
-        this.points[i].vx *= -1;
-        this.points[i].vy *= -1;
+          ),
+        );
+
+      if (collidingTriangle != null) {
+        const edges = [
+          createLineSegment(collidingTriangle[0], collidingTriangle[1]),
+          createLineSegment(collidingTriangle[0], collidingTriangle[2]),
+          createLineSegment(collidingTriangle[1], collidingTriangle[2]),
+        ];
+
+        const distancesFromEdges = edges.map(edge => pointDistanceFromLineSegment(edge, { x, y }));
+
+        const collidingEdge = edges[distancesFromEdges.indexOf(Math.min(...distancesFromEdges))];
+        const collisionAngle = vectorsAngle(
+          lineSegmentToVector(collidingEdge),
+          createVector(vx, vy),
+        );
+
+        const vRotated = vectorRotate2D([-vx, -vy], Math.PI - (2 * collisionAngle));
+
+        this.points[i].vx = vRotated[0];
+        this.points[i].vy = vRotated[1];
       } else {
         if (x + vx < 0 || x + vx > this.canvas.width) {
           this.points[i].vx *= -1;
@@ -153,7 +171,9 @@ export default class Background {
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
     this.cells.forEach((cell) => {
-      const triangle = cell.pointIndexes.map(pointIndex => this.points[pointIndex]);
+      const triangle = cell.pointIndexes.map(
+        pointIndex => this.points[pointIndex],
+      );
 
       this.ctx.beginPath();
       this.ctx.moveTo(triangle[0].x, triangle[0].y);
